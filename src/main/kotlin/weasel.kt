@@ -163,7 +163,10 @@ fun eval(env: Env, expr: Expr): Expr {
             when (evaledExpr) {
                 is Expr.Closure -> {
                     if (expr.isRecursive) {
-                        evaledExpr.env = evaledExpr.env.put(expr.binder, evaledExpr)
+                        if(!evaledExpr.env.containsKey(expr.binder)){
+                            evaledExpr.env = evaledExpr.env.put(expr.binder, evaledExpr)
+                            evaledExpr.env = addBoundedEnv(evaledExpr.env, expr.body)
+                        }
                     }
                     eval(env.put(expr.binder, evaledExpr), expr.body)
                 }
@@ -171,6 +174,22 @@ fun eval(env: Env, expr: Expr): Expr {
             }
         }
         is Expr.LinkedList -> Expr.LinkedList(expr.values.map { eval(env, it) })
+    }
+}
+
+fun addBoundedEnv(env : Env, exp : Expr): Env {
+    return when(exp){
+        is Expr.Let ->
+            if (exp.isRecursive) {
+                val evaledExpr = eval(env, exp.expr)
+                val newEnv = env.put(exp.binder,evaledExpr)
+                addBoundedEnv(newEnv,exp.body)
+            }
+            else {
+                val expEnv = addBoundedEnv(env,exp.expr)
+                addBoundedEnv(expEnv,exp.body)
+            }
+        else -> env
     }
 }
 

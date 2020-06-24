@@ -222,11 +222,7 @@ fun infer(ctx: Context, expr: Expr): Monotype {
                 var newCtx = ctx
                 // create bounded context
                 if(!ctx.containsKey(expr.binder)){
-                    val bc = inferRec(persistentHashMapOf(), expr)
-                    bc.forEach {
-                        val tyBinder = freshUnknown()
-                        newCtx = newCtx.put(it.key, Polytype.fromMono(tyBinder))
-                    }
+                    newCtx = addBoundedContext(ctx, expr)
                 }
 
                 // TODO: Polymorph recursive bindings?
@@ -252,37 +248,19 @@ fun infer(ctx: Context, expr: Expr): Monotype {
     }
 }
 
-typealias BoundedContext = PersistentMap<String, Expr>
-
-fun inferRec(bc : BoundedContext, exp : Expr): BoundedContext {
+fun addBoundedContext(c : Context, exp : Expr): Context {
     return when(exp){
-        is Expr.Lambda -> inferRec(bc,exp.body)
-        is Expr.Application -> {
-            val funcBc = inferRec(bc,exp.func)
-            inferRec(funcBc,exp.argument)
-        }
-        is Expr.If -> {
-            val conBc = inferRec(bc,exp.condition)
-            val thenBc = inferRec(conBc,exp.thenBranch)
-            inferRec(thenBc,exp.elseBranch)
-        }
         is Expr.Let ->
             if (exp.isRecursive) {
-                val newBc = bc.put(exp.binder,exp.expr)
-                inferRec(newBc,exp.body)
+                val tyBinder = freshUnknown()
+                val newCtx = c.put(exp.binder, Polytype.fromMono(tyBinder))
+                addBoundedContext(newCtx,exp.body)
             }
             else {
-                val expBc = inferRec(bc,exp.expr)
-                inferRec(expBc,exp.body)
+                val expCtx = addBoundedContext(c,exp.expr)
+                addBoundedContext(expCtx,exp.body)
             }
-        is Expr.LinkedList -> {
-            var newBc = bc
-            exp.values.forEach { element ->
-                inferRec(newBc,element)
-            }
-            newBc
-        }
-        else -> bc
+        else -> c
     }
 }
 
@@ -350,8 +328,8 @@ fun main() {
 
     val rec = """
         let rec isEven = \x -> if x == 0 then true else isOdd (x - 1) in
-        let rec isOdd = \y -> if y == 1 then true else isEven (y - 1) in
-        isEven 10
+        let rec isOdd = \y -> if y == 0 then false else isEven (y - 1) in
+        isOdd 2
     """.trimIndent()
     testInfer(rec)
 
