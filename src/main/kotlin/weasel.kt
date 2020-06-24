@@ -177,18 +177,17 @@ fun eval(env: Env, expr: Expr): Expr {
     }
 }
 
-fun addBoundedEnv(env : Env, exp : Expr): Env {
-    return when(exp){
-        is Expr.Let ->
-            if (exp.isRecursive) {
-                val evaledExpr = eval(env, exp.expr)
-                val newEnv = env.put(exp.binder,evaledExpr)
-                addBoundedEnv(newEnv,exp.body)
+fun addBoundedEnv(env : Env, expr : Expr): Env {
+    return when(expr){
+        is Expr.Let -> {
+            val boundedEnv = if(expr.isRecursive) {
+                val evaledExpr = eval(env, expr.expr)
+                env.put(expr.binder,evaledExpr)
             }
-            else {
-                val expEnv = addBoundedEnv(env,exp.expr)
-                addBoundedEnv(expEnv,exp.body)
-            }
+            else env
+
+            addBoundedEnv(boundedEnv,expr.body)
+        }
         else -> env
     }
 }

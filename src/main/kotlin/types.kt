@@ -219,13 +219,10 @@ fun infer(ctx: Context, expr: Expr): Monotype {
         }
         is Expr.Let -> {
             val newCtx = if (expr.isRecursive) {
-                var newCtx = ctx
-                // create bounded context
-                if(!ctx.containsKey(expr.binder)){
-                    newCtx = addBoundedContext(ctx, expr)
+                val newCtx = if(!ctx.containsKey(expr.binder)){
+                    addBoundedContext(ctx, expr)
                 }
-
-                // TODO: Polymorph recursive bindings?
+                else ctx
 
                 val tyBinder = newCtx[expr.binder]
                 val inferredBinder = infer(newCtx, expr.expr)
@@ -248,19 +245,19 @@ fun infer(ctx: Context, expr: Expr): Monotype {
     }
 }
 
-fun addBoundedContext(c : Context, exp : Expr): Context {
-    return when(exp){
+fun addBoundedContext(ctx : Context, expr : Expr): Context {
+    return when(expr){
         is Expr.Let ->
-            if (exp.isRecursive) {
+        {
+            val boundedCtx = if (expr.isRecursive) {
                 val tyBinder = freshUnknown()
-                val newCtx = c.put(exp.binder, Polytype.fromMono(tyBinder))
-                addBoundedContext(newCtx,exp.body)
+                ctx.put(expr.binder, Polytype.fromMono(tyBinder))
             }
-            else {
-                val expCtx = addBoundedContext(c,exp.expr)
-                addBoundedContext(expCtx,exp.body)
-            }
-        else -> c
+            else ctx
+
+            addBoundedContext(boundedCtx,expr.body)
+        }
+        else -> ctx
     }
 }
 
@@ -329,7 +326,7 @@ fun main() {
     val rec = """
         let rec isEven = \x -> if x == 0 then true else isOdd (x - 1) in
         let rec isOdd = \y -> if y == 0 then false else isEven (y - 1) in
-        isOdd 2
+        isEven 2
     """.trimIndent()
     testInfer(rec)
 
